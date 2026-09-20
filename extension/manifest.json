@@ -1,0 +1,49 @@
+{
+  "manifest_version": 3,
+  "name": "IndiaMART Lead Bridge",
+  "version": "3.0",
+  "description": "Network-layer lead interception. Captures raw API JSON feed; purchases via direct API call. Python backend is a local command centre only.",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://seller.indiamart.com/*",
+    "http://127.0.0.1/*",
+    "http://127.0.0.1:9223/*",
+    "http://localhost/*",
+    "http://localhost:9223/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://seller.indiamart.com/bltxn/*",
+        "https://seller.indiamart.com/messagecentre/*"
+      ],
+      "js": ["inject-im-hook.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://seller.indiamart.com/bltxn/*",
+        "https://seller.indiamart.com/messagecentre/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "IndiaMART Lead Bridge"
+  },
+  "icons": {
+    "16":  "icons/icon16.png",
+    "48":  "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

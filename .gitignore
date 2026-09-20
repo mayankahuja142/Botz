@@ -1,0 +1,59 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Environment Variables
+.env
+.env.local
+
+# Databases
+*.sqlite3
+*.db
+*.db-shm
+*.db-wal
+# Allow database directories if they contain schema or initial state, but ignore the db files
+database/
+data/
+
+# Logs
+logs/
+*.log
+
+# Graphify
+graphify-out/cache/
+
+# Playwright
+playwright_profile/
+
+# IDE/system files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
