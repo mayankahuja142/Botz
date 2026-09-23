@@ -27,7 +27,9 @@ const crypto = { subtle: { digest: async () => new Uint8Array(32) } };
                 ["node", tmp_path], 
                 capture_output=True, text=True, check=True
             )
-            return json.loads(result.stdout.strip())
+            lines = result.stdout.strip().split("\n")
+            json_line = next((line for line in reversed(lines) if line.startswith("{") or line.startswith("[")), "{}")
+            return json.loads(json_line)
         except subprocess.CalledProcessError as e:
             print("Node stderr:", e.stderr)
             raise
@@ -171,6 +173,57 @@ const http = require('http');
         self.assertIn("HTTP 500", res["r500"]["error"])
         self.assertFalse(res["refused"]["success"])
         self.assertIn("fetch", res["refused"]["error"].lower())
+
+    def test_eto_schema_distinct_hashes(self):
+        """
+        Two records with distinct ETO_OFR_TITLE / ETO_OFR_QTY / GLUSR_CITY values
+        must NOT produce the same hash key (title|location|quantity).
+        Before the fix they both fell back to 'Unknown Lead||1'.
+        """
+        script = """
+const raw1 = {
+    ETO_OFR_ID: "eto_001",
+    ETO_OFR_TITLE: "Need 200 units of Widget A",
+    ETO_OFR_QTY: "200",
+    GLUSR_CITY: "Delhi",
+    GLUSR_COUNTRY: "India"
+};
+const raw2 = {
+    ETO_OFR_ID: "eto_002",
+    ETO_OFR_TITLE: "Looking for Gadget B in bulk",
+    ETO_OFR_QTY: "500",
+    GLUSR_CITY: "Mumbai",
+    GLUSR_COUNTRY: "India"
+};
+const l1 = normaliseLead(raw1);
+const l2 = normaliseLead(raw2);
+const hashKey1 = l1.title + "|" + l1.location + "|" + l1.quantity;
+const hashKey2 = l2.title + "|" + l2.location + "|" + l2.quantity;
+console.log(JSON.stringify({
+    l1_title: l1.title,
+    l2_title: l2.title,
+    are_distinct: hashKey1 !== hashKey2
+}));
+"""
+        res = self._run_js(script)
+        self.assertTrue(res["are_distinct"], "Two distinct ETO records produced the same hash key")
+        self.assertNotEqual(res["l1_title"], "Unknown Lead", "ETO_OFR_TITLE not mapped for record 1")
+        self.assertNotEqual(res["l2_title"], "Unknown Lead", "ETO_OFR_TITLE not mapped for record 2")
+
+    def test_eto_schema_duplicate_detection(self):
+        """
+        The same synthetic ETO record submitted twice must be detected as a
+        duplicate by the browser-side isDuplicate() TTL cache.
+        """
+        script = """
+const r1 = isDuplicate("eto_dup_99");
+const r2 = isDuplicate("eto_dup_99");
+console.log(JSON.stringify({r1, r2}));
+"""
+        res = self._run_js(script)
+        self.assertFalse(res["r1"], "First occurrence should not be a duplicate")
+        self.assertTrue(res["r2"], "Second occurrence must be detected as a duplicate")
+
 
 if __name__ == "__main__":
     unittest.main()

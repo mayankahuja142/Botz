@@ -105,7 +105,7 @@ PROCESS_ID = uuid.uuid4().hex[:8].upper()
 _CORS_HEADERS = {
     "Access-Control-Allow-Origin":  "*",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Headers": "Content-Type, X-Request-Id",
 }
 
 # ── Tunables ──────────────────────────────────────────────────────────────────
@@ -798,6 +798,7 @@ class LocalServer:
                 if self.path.split("?")[0] != "/log":
                     self._send_cors(404, b'{"error":"not found"}')
                     return
+                req_id = self.headers.get("X-Request-Id", "-")
                 try:
                     length = int(self.headers.get("Content-Length", 0))
                     raw    = self.rfile.read(length).decode("utf-8", errors="replace")
@@ -815,8 +816,8 @@ class LocalServer:
                     server_ref._handle_log(data)
                     self._send_cors(200, b'{"ok":true}')
                     logger.debug(
-                        "[Server] INSTANCE=%s POST /log status=%s hash=%.12s",
-                        server_ref.instance_id,
+                        "[Server] INSTANCE=%s POST /log req=%s status=%s hash=%.12s",
+                        server_ref.instance_id, req_id,
                         data.get("status", "?"),
                         data.get("lead_hash", ""),
                     )
@@ -1028,6 +1029,7 @@ class LocalServer:
             status if status in ("purchased", "simulated", "filtered")
             else "filtered"
         )
+        logger.debug("[Server] INSTANCE=%s queuing lead event status=%s", self.instance_id, ui_status)
         self._push({"type": "lead", "data": data, "status": ui_status})
 
     # =========================================================================

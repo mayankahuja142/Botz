@@ -215,28 +215,31 @@ async function getConfig() {
 // =============================================================================
 
 async function postLog(payload) {
-    const port = (_config && _config.server_port) || DEFAULT_PORT;
+    const port  = (_config && _config.server_port) || DEFAULT_PORT;
+    const reqId = Date.now() + "-" + Math.floor(Math.random() * 1000);
     try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000);
-        
+        const timeoutId  = setTimeout(() => controller.abort(), 5000);
+
         const resp = await fetch(`http://127.0.0.1:${port}/log`, {
             method:  "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+                "Content-Type": "application/json",
+                "X-Request-Id": reqId,
+            },
             body:    JSON.stringify(payload),
-            signal:  controller.signal
+            signal:  controller.signal,
         });
         clearTimeout(timeoutId);
-        
+
         if (!resp.ok) {
-            return { success: false, error: `HTTP ${resp.status} ${resp.statusText}`.trim() };
+            const errorStr = `HTTP ${resp.status} ${resp.statusText}`.trim();
+            return { success: false, error: errorStr };
         }
         return { success: true };
     } catch (e) {
-        return { 
-            success: false, 
-            error: e.name === "AbortError" ? "Request timed out" : (e.message || "Network Error")
-        };
+        const errorStr = e.name === "AbortError" ? "Request timed out" : (e.message || "Network Error");
+        return { success: false, error: errorStr };
     }
 }
 
@@ -407,14 +410,14 @@ function normaliseLead(raw) {
     if (!raw || typeof raw !== "object") return null;
 
     const ofrid = String(
-        raw.ofrid || raw.OFRID || raw.buyLeadId || raw.lead_id || raw.queryId || raw.enqId || ""
+        raw.ofrid || raw.OFRID || raw.buyLeadId || raw.lead_id || raw.queryId || raw.enqId || raw.offer_id || raw.OFFER_ID || raw.ETO_OFR_ID || ""
     ).trim();
     if (!ofrid) return null;
 
-    const title    = (raw.subject || raw.title || raw.reqSubject || raw.SUBJECT || raw.productName || raw.mcatName || raw.buyerRequirements || "").trim();
-    const country  = (raw.country || raw.COUNTRY || raw.buyerCountry || raw.senderCountry || "India").trim();
-    const quantity = String(raw.qty || raw.quantity || raw.QUANTITY || raw.enqQty || "1").trim();
-    const location = (raw.city || raw.location || raw.LOCATION || raw.buyerCity || raw.senderCity || "").trim();
+    const title    = (raw.subject || raw.title || raw.reqSubject || raw.SUBJECT || raw.productName || raw.mcatName || raw.buyerRequirements || raw.ETO_OFR_TITLE || "").trim();
+    const country  = (raw.country || raw.COUNTRY || raw.buyerCountry || raw.senderCountry || raw.GLUSR_COUNTRY || "India").trim();
+    const quantity = String(raw.qty || raw.quantity || raw.QUANTITY || raw.enqQty || raw.ETO_OFR_QTY || "1").trim();
+    const location = (raw.city || raw.location || raw.LOCATION || raw.buyerCity || raw.senderCity || raw.GLUSR_CITY || "").trim();
 
     // Age: prefer a pre-computed field; fall back to posted_on epoch diff
     let ageStr = "";
@@ -591,9 +594,9 @@ async function handleLead(lead, config) {
             display_name:  lead.display_name,
             contact_info:  lead.contactInfo,
         });
-        
+
         if (!result.success) {
-            console.error(`[LeadBridge] TRANSPORT FAILURE: Could not deliver lead '${lead.title}' to backend. Error: ${result.error}`);
+            console.error(`[LeadBridge] TRANSPORT FAILURE: Could not deliver lead to backend. Error: ${result.error}`);
             return false;
         }
         return true;
@@ -669,6 +672,7 @@ async function processFeedPayload(payload) {
 
     // 1. Format the leads array properly
     const formattedLeads = rawLeads.map(normaliseLead).filter(Boolean);
+    console.log(`[LeadBridge] Extracted: ${formattedLeads.length} valid leads.`);
 
     // Process all leads in the batch; each handleLead is independent.
     const tasks = [];

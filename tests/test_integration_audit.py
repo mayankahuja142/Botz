@@ -64,7 +64,7 @@ class TestIntegrationAudit(unittest.TestCase):
         """
         # 1. Synthetic Source Object (representing what getBLDisplayData would yield)
         source_object = {
-            "ofrid": "synthetic_123",
+            "ETO_OFR_ID": "synthetic_123",
             "subject": "Need 5000 units of Widgets",
             "country": "United States",
             "qty": "5000",
@@ -163,6 +163,44 @@ getFinalPayload();
         # 6. Verify the data passed to UI payload
         ui_data = ev2["data"]
         self.assertEqual(ui_data.get("display_name"), "Test Customer")
+
+    def test_cors_preflight_and_post(self):
+        """
+        Verify that OPTIONS requests authorize X-Request-Id and that the
+        subsequent POST succeeds when using that header.
+        """
+        # 1. Send OPTIONS request
+        req_options = urllib.request.Request(
+            f"http://127.0.0.1:{self.settings['server_port']}/log",
+            headers={
+                "Origin": "https://seller.indiamart.com",
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "content-type, x-request-id"
+            },
+            method="OPTIONS"
+        )
+
+        with urllib.request.urlopen(req_options) as resp_options:
+            self.assertEqual(resp_options.status, 200)
+            headers = {k.lower(): v.lower() for k, v in resp_options.headers.items()}
+            self.assertIn("access-control-allow-headers", headers)
+            self.assertIn("x-request-id", headers["access-control-allow-headers"])
+
+        # 2. Send POST request (simulate browser proceeding after preflight)
+        payload = {"status": "simulated", "lead_hash": "cors_test_123"}
+        req_post = urllib.request.Request(
+            f"http://127.0.0.1:{self.settings['server_port']}/log",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "X-Request-Id": "test_cors_123",
+                "Origin": "https://seller.indiamart.com"
+            },
+            method="POST"
+        )
+        with urllib.request.urlopen(req_post) as resp_post:
+            self.assertEqual(resp_post.status, 200)
+            self.assertTrue(json.loads(resp_post.read().decode())["ok"])
 
 if __name__ == "__main__":
     unittest.main()

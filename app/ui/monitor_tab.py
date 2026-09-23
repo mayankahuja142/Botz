@@ -183,8 +183,13 @@ class MonitorTab(ctk.CTkFrame):
             border_width=1,
             border_color="#2a2a50",
         )
-        # Pack at top (newest first) by inserting before existing children
-        card.pack(fill="x", pady=(0, 8), padx=2, before=self._first_card_widget())
+
+        # Pack at top (newest first).
+        before_widget = self._first_card_widget()
+        if before_widget is not None:
+            card.pack(fill="x", pady=(0, 8), padx=2, before=before_widget)
+        else:
+            card.pack(fill="x", pady=(0, 8), padx=2)
 
         # ── Status chip + country ─────────────────────────────────────────────
         row1 = ctk.CTkFrame(card, fg_color="transparent")
@@ -328,9 +333,28 @@ class MonitorTab(ctk.CTkFrame):
 
     def _first_card_widget(self):
         """
-        Return the first child of the cards_frame so new cards can be inserted
-        before it (giving a 'newest on top' ordering).
-        Returns None if the frame is empty, which causes pack() to append normally.
+        Return the first *user* card inside the scrollable feed so new cards can
+        be inserted before it (newest-on-top ordering).
+
+        CTkScrollableFrame renders user content into an inner _scrollable_frame
+        canvas viewport, but that inner frame may also contain internal CTk
+        structural children that are NOT managed by pack (e.g. a bare CTkFrame
+        used as a layout helper).  Passing an unpacked widget to pack(before=)
+        raises a TclError that _guarded() absorbs silently, leaving the feed empty.
+
+        We filter for children that are already pack-managed (i.e. have a non-empty
+        pack info dict).  The first such child is the topmost user card.
+        Returns None if no pack-managed card exists yet, causing pack() to append.
         """
-        children = self.cards_frame.winfo_children()
-        return children[0] if children else None
+        try:
+            inner = getattr(self.cards_frame, "_scrollable_frame", None)
+            candidates = inner.winfo_children() if inner is not None else self.cards_frame.winfo_children()
+            for child in candidates:
+                try:
+                    if child.pack_info():  # non-empty dict means it is pack-managed
+                        return child
+                except Exception:
+                    pass  # widget not managed by pack — skip it
+            return None
+        except Exception:
+            return None

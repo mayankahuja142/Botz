@@ -114,5 +114,67 @@ class TestUI(unittest.TestCase):
         # The fact that destroy() did not raise an exception, and the after loop
         # won't raise one when root is destroyed, means it's lifecycle safe.
 
+    def test_lead_card_rendered_for_filtered_status(self):
+        """
+        Verify that add_lead_card() actually creates a visible child widget inside
+        the scrollable feed for a 'filtered' lead (the most common live status).
+
+        Before the fix, _first_card_widget() queried winfo_children() on the outer
+        CTkScrollableFrame, which returns internal canvas/scrollbar nodes — not user
+        cards.  Passing those to pack(before=) raised a TclError that _guarded()
+        absorbed silently, leaving the feed empty.
+
+        The fix queries _scrollable_frame (the inner content frame) instead.
+        """
+        tab = MonitorTab(self.root)
+
+        # Feed must be empty at the start
+        inner = getattr(tab.cards_frame, "_scrollable_frame", tab.cards_frame)
+        self.assertEqual(len(inner.winfo_children()), 0, "Feed should start empty")
+
+        synthetic_lead = {
+            "title":        "Synthetic Test Lead",
+            "country":      "Test Country",
+            "quantity":     "100",
+            "location":     "Test City",
+            "display_name": "",
+            "contact_info": "",
+        }
+
+        # This call must not raise and must leave exactly 1 child in the feed
+        try:
+            tab.add_lead_card(synthetic_lead, "filtered")
+        except Exception as exc:
+            self.fail(f"add_lead_card raised an unexpected exception: {exc}")
+
+        self.root.update_idletasks()  # process any pending geometry updates
+
+        children_after = inner.winfo_children()
+        self.assertGreater(
+            len(children_after), 0,
+            "No card widget was added to the scrollable feed for status='filtered'"
+        )
+
+    def test_lead_card_rendered_for_simulated_status(self):
+        """Same rendering check for status='simulated'."""
+        tab = MonitorTab(self.root)
+        inner = getattr(tab.cards_frame, "_scrollable_frame", tab.cards_frame)
+
+        synthetic_lead = {
+            "title":    "Synthetic Simulated Lead",
+            "country":  "Test Country",
+            "quantity": "200",
+            "location": "Test City",
+        }
+        try:
+            tab.add_lead_card(synthetic_lead, "simulated")
+        except Exception as exc:
+            self.fail(f"add_lead_card raised an unexpected exception: {exc}")
+
+        self.root.update_idletasks()
+        self.assertGreater(len(inner.winfo_children()), 0,
+                           "No card widget was added for status='simulated'")
+
+
 if __name__ == "__main__":
     unittest.main()
